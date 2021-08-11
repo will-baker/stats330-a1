@@ -1,0 +1,154 @@
+---
+title: "STATS 330 Assignment 1"
+author: "Will Baker - 220997967"
+date: 'Due Date: 4pm Thursday 12th August'
+output:
+  html_document:
+    fig_caption: yes
+    number_sections: yes
+  pdf_document: default
+  word_document: default
+---
+
+# Question 1
+
+```{r}
+PPW.df=read.csv("PPW.csv")
+library(s20x)
+```
+
+## a) Plot and inspect data
+
+```{r}
+plot(Wt~Ht, type="n", data=PPW.df)
+text(Wt~Ht, labels=substr(How,1,1),
+     col=ifelse(How=="Drown","blue","brown"),
+     data=PPW.df, cex=0.9, font=2)
+```
+
+From the above plot, we can see that the data appears to follow a positive linear trend, with lung weight increasing as the person's height increases, which is to be expected. Considering the lung weight of people who drowned, they appear heavier than the lung weight of people who were hanged, which does not appear to change as Height increases.
+
+## b) Augment plot with PPW height and lung weight
+
+```{r}
+plot(Wt~Ht, type="n", data=PPW.df)
+text(Wt~Ht, labels=substr(How,1,1),
+     col=ifelse(How=="Drown","blue","brown"),
+     data=PPW.df, cex=0.9, font=2)
+text(196, 1125, labels="P", col="red", cex=0.9, font=2)
+
+```
+
+Peter Plumley-Walker's (PPW) height and weight are plotted above, denoted by point `P` in red. It appears consistent with the trend of lung weight increasing with height, although is located in the cluster of `hung` datapoints, which are lower than the cluster of datapoints for `drown` around the same height of 196cm. At first glance, this adds weight to the defense's case that PPW died from hanging, as the argument would be a drowned person would have water in their lungs, so on average has a higher lung weight than hanged people for the same height.
+
+However, the data has quite a bit of variability, and PPW's lung weight would not be outlier even if it was confirmed he drowned. The prosecution is likely to argue that PPW's lung weight was within the range for being drowned for people his height.
+
+## c) Linear model
+
+```{r}
+PPW.fit = lm(Wt~Ht * How, data=PPW.df)
+PPW.fit2 = lm(Wt~Ht + How, data=PPW.df)
+PPW.fit3 = lm(log(Wt)~Ht + How, data=PPW.df)
+
+anova(PPW.fit)
+summary(PPW.fit2)
+
+plot(PPW.fit2, which=1)
+normcheck(PPW.fit2)
+cooks20x(PPW.fit2)
+```
+
+We first fit a linear model between lung weight (`Wt`) and height (`Ht`) with how the person died (`How`) as an interaction term with two levels, hung or drown. We can drop this interaction term as it is not significant, so we fit the with `How` as a factor variable.
+
+Assuming independence of the datapoints, the residuals appear normal, and show randomness around zero with roughly constant variance between the factors. There are no unduly influential points, so it appears all assumptions of the linear model are satisfied.
+
+## d) Plot with model
+
+```{r}
+plot(Wt~Ht, type="n", data=PPW.df)
+text(Wt~Ht, labels=substr(How,1,1),
+     col=ifelse(How=="Drown","blue","brown"),
+     data=PPW.df, cex=0.9, font=2)
+text(196, 1125, labels="P", col="red", cex=0.9, font=2)
+
+abline(PPW.fit2$coef[1], PPW.fit2$coef[2], col="blue", lty=2)
+abline(PPW.fit2$coef[1] + PPW.fit2$coef[3], PPW.fit2$coef[2], col="red", lty=2)
+```
+
+As there is no evidence of interaction between the variables, we can see by the parallel lines between `drown` and `hung` that the type of death does not depend on the height in it's effect on lung weight. We can see a vertical gap between the two plot lines, indicating that drown victims (blue trend line) do have higher lung weights on average.
+
+In regards to the difference sides of the case, PPW's height and weight are almost directly on top of the hanged line, indicating his lung weight was consistent with a person who was hung rather than drowned. This is adds evidence for the defense case that throwing PPW down the Huka Falls was post-mortem, however the lines are relatively close to each other, so this is not statistically conclusive.
+
+## e) Prediction intervals for either hung or drowned
+
+```{r}
+preds = rbind(
+  predict(PPW.fit2, newdata=data.frame(Ht=196, How="Drown"), interval = "prediction"), 
+  predict(PPW.fit2, newdata=data.frame(Ht=196, How="Hung"), interval = "prediction"))
+preds
+```
+
+## f) Augment plot with prediction intervals
+
+```{r}
+plot(Wt~Ht, type="n", data=PPW.df)
+text(Wt~Ht, labels=substr(How,1,1),
+     col=ifelse(How=="Drown","blue","brown"),
+     data=PPW.df, cex=0.9, font=2)
+text(196, 1125, labels="P", col="red", cex=0.9, font=2)
+
+abline(PPW.fit2$coef[1], PPW.fit2$coef[2], col="blue", lty=2)
+abline(PPW.fit2$coef[1] + PPW.fit2$coef[3], PPW.fit2$coef[2], col="red", lty=2)
+
+segments(196-.5, preds[1,2], 196-.5, preds[1,3], col="green")
+segments(196+.5, preds[2,2], 196+.5, preds[2,3], col="blue")
+```
+
+## Prediction intervals - relevance to case
+
+With such large overlapping prediction intervals, we can see that for PPW, there appears to be no definitive statistical conclusion that he was drowned or hung, as it is well within both prediction intervals for a person of his height to have his measured lung weight. For both sides of the case, this does not add or detract from their arguments that he died by hanging or drowning, the distinctions in lung weight cannot be made.
+
+## h) GLM
+
+```{r}
+PPW.glm = glm(Wt ~ Ht + How, family="gaussian", data=PPW.df)
+summary(PPW.glm)
+# Rounded to match lm summary output.
+# Calculate RSE as the square root of the residual variance divided by the degrees of freedom.
+round(with(summary(PPW.glm), sqrt(deviance/df.residual)), 1)
+
+# Calclate R^2 as the ratio of of the residual variance to the null model variance
+round(with(summary(PPW.glm), 1-deviance/null.deviance), 4)
+```
+
+# Question 2
+
+## Predicting probability of death due to hanging
+
+```{r}
+hung.glm = glm(I(How=="Hung") ~ Ht + Wt, family = binomial, data=PPW.df)
+
+anova(hung.glm, test="Chisq")
+
+summary(hung.glm)
+```
+
+```{r}
+1-pchisq(120.69,131)
+
+```
+
+## Confidence interval for PPW being hung
+
+```{r}
+predHanged = predictGLM(hung.glm, newdata=data.frame(Ht=196, Wt=1125), type="response")
+round(predHanged,3)
+```
+
+## Relevance for the case
+
+The probability that a person of PPW's height and lung weight was hanged is between 0.325 and 0.725. This is again a very wide variance, and does not conclude that PPW was hanged.
+
+## Innocent until proven guilty
+
+Innocent until proven guilty is very similar to the scientific concept of the null hypothesis. That is, there needs to be evidence to conclude beyond reasonable doubt that a finding is very different from no effect/the null/innocence. Considering in this case, that the prosecution needs to find considerable evidence to prove that PPW did not die from strangulation (hanging), but rather died from drowning in order to prove a murder charge. Both the probability of PPW being hung, as well as highly overlapping prediction intervals assuming either drowning or hanging, both show no conclusive evidence that he was drowned rather than hung so the burden of proof to show he was drowned using this analysis hasn't been met.
